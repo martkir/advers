@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data.distributed
 from torchvision import datasets, transforms
+from tqdm import tqdm
 
 
 class Metric(object):
@@ -145,50 +146,61 @@ class BaseTrainer(object):
         if self.attack:
             self.attack.set_epoch(epoch)
 
-        for batch_idx, (data, target) in enumerate(self.train_loader):
-            print('batch_idx: ', batch_idx)
-            if self.cuda:
-                data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
-            self._adjust_learning_rate(epoch)
-            loss = torch.zeros([], dtype=torch.float32, device='cuda')
-            if (not self.attack) or self.attack_loss == 'avg':
-                output = self.model(data)
-                loss += self._compute_loss(output, target)
-                train_std_loss.update(loss)
-                train_std_acc.update(accuracy(output, target))
-            else:
-                with torch.no_grad():
-                    self.model.eval()
+        with tqdm(total=len(self.train_loader)) as pbar:
+            for batch_idx, (data, target) in enumerate(self.train_loader):
+                if self.cuda:
+                    data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
+                self._adjust_learning_rate(epoch)
+                loss = torch.zeros([], dtype=torch.float32, device='cuda')
+                if (not self.attack) or self.attack_loss == 'avg':
                     output = self.model(data)
-                    train_std_loss_val = self._compute_loss(output, target)
-                    train_std_loss.update(train_std_loss_val)
+                    loss += self._compute_loss(output, target)
+                    train_std_loss.update(loss)
                     train_std_acc.update(accuracy(output, target))
-                    self.model.train()
-
-            if self.attack:
-                if self.rand_target:
-                    attack_target = torch.randint(0, len(self.val_dataset.classes) - 1, target.size(),
-                                                  dtype=target.dtype, device='cuda')
-                    attack_target = torch.remainder(target + attack_target + 1, len(self.val_dataset.classes))
-
-                if self.rand_target:
-                    data_adv = self.attack(self.model, data, attack_target, avoid_target=False,
-                                           scale_eps=self.scale_eps)
                 else:
-                    data_adv = self.attack(self.model, data, target,
-                                           avoid_target=True, scale_eps=self.scale_eps)
-                output_adv = self.model(data_adv)
-                adv_loss = self._compute_loss(output_adv, target)
+                    with torch.no_grad():
+                        self.model.eval()
+                        output = self.model(data)
+                        train_std_loss_val = self._compute_loss(output, target)
+                        train_std_loss.update(train_std_loss_val)
+                        train_std_acc.update(accuracy(output, target))
+                        self.model.train()
 
-                train_adv_loss.update(adv_loss)
-                train_adv_acc.update(accuracy(output_adv, target))
-                loss += adv_loss
-                if self.attack_loss == 'avg':
-                    loss /= 2.
+                if self.attack:
+                    if self.rand_target:
+                        attack_target = torch.randint(0, len(self.val_dataset.classes) - 1, target.size(),
+                                                      dtype=target.dtype, device='cuda')
+                        attack_target = torch.remainder(target + attack_target + 1, len(self.val_dataset.classes))
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+                    if self.rand_target:
+                        data_adv = self.attack(self.model, data, attack_target, avoid_target=False,
+                                               scale_eps=self.scale_eps)
+                    else:
+                        data_adv = self.attack(self.model, data, target,
+                                               avoid_target=True, scale_eps=self.scale_eps)
+                    output_adv = self.model(data_adv)
+                    adv_loss = self._compute_loss(output_adv, target)
+
+                    train_adv_loss.update(adv_loss)
+                    train_adv_acc.update(accuracy(output_adv, target))
+                    loss += adv_loss
+                    if self.attack_loss == 'avg':
+                        loss /= 2.
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                batch_stats = {'train_std_loss': train_std_loss.avg.item(),
+                               'train_std_acc': train_std_acc.avg.item(),
+                               'train_adv_loss': train_adv_loss.avg.item(),
+                               'train_adv_acc': train_adv_acc.avg.item()}
+
+                description = 'epoch: {} '.format(epoch)
+                description += ' '.join(['{}: {:.4f}'.format(k, v) for k, v in batch_stats.items()])
+
+                pbar.update(1)
+                pbar.set_description(description)
 
         log_dict = {'train_std_loss': train_std_loss.avg.item(),
                     'train_std_acc': train_std_acc.avg.item(),
