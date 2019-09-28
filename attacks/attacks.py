@@ -5,6 +5,7 @@ import torchvision
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
+
 def get_eps_params(base_eps, resol):
     eps_list = []
     max_list = []
@@ -19,6 +20,7 @@ def get_eps_params(base_eps, resol):
     min_t = torch.unsqueeze(torch.stack(min_list), 0)
     return eps_t, max_t, min_t
 
+
 def get_imagenet_params(resol):
     mean_list = []
     std_list = []
@@ -26,6 +28,7 @@ def get_imagenet_params(resol):
         mean_list.append(torch.full((resol, resol), IMAGENET_MEAN[i], device='cuda'))
         std_list.append(torch.full((resol, resol), IMAGENET_STD[i], device='cuda'))
     return torch.unsqueeze(torch.stack(mean_list), 0), torch.unsqueeze(torch.stack(std_list), 0)
+
 
 class ImagenetTransform(nn.Module):
     def __init__(self, resol):
@@ -42,6 +45,7 @@ class ImagenetTransform(nn.Module):
         x = x.div(self.std)
         return x
 
+
 class InverseImagenetTransform(nn.Module):
     def __init__(self, resol):
         super().__init__()
@@ -56,6 +60,7 @@ class InverseImagenetTransform(nn.Module):
         x = x.add(self.mean)
         x = x * 255.
         return x
+
 
 class PixelModel(nn.Module):
     def __init__(self, model, resol):
@@ -72,6 +77,7 @@ class PixelModel(nn.Module):
         # x is now normalized as the model expects
         x = self.model(x)
         return x
+
 
 class AttackWrapper(nn.Module):
     def __init__(self, resol):

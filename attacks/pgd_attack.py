@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from attacks.attacks import AttackWrapper
 
+
 class PGDAttack(AttackWrapper):
     def __init__(self, nb_its, eps_max, step_size, resol, norm='linf', rand_init=True, scale_each=False):
         """
@@ -28,8 +29,7 @@ class PGDAttack(AttackWrapper):
         self.scale_each = scale_each
 
         self.criterion = nn.CrossEntropyLoss().cuda()
-        self.nb_backward_steps = self.nb_its
-        
+
     def _run_one(self, pixel_model, pixel_inp, delta, target, eps, step_size, avoid_target=True):
         s = pixel_model(pixel_inp + delta)
         if self.norm == 'l2':

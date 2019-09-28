@@ -31,7 +31,6 @@ class JPEGAttack(AttackWrapper):
         self.l1_max = l1_max
         
         self.criterion = nn.CrossEntropyLoss().cuda()
-        self.nb_backward_steps = nb_its
         self.jpeg = JPEG().cuda()
 
     def _convert_cat_var(self, cat_var, batch_size, height, width):
