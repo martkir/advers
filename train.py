@@ -30,7 +30,7 @@ def train(**flag_kwargs):
     model = pyt_common.get_model(FLAGS.dataset, FLAGS.resnet_size, 1000 // FLAGS.class_downsample_factor)
     if FLAGS.adv_train:
         attack = pyt_common.get_attack(FLAGS.dataset, FLAGS.attack, FLAGS.epsilon,
-                            FLAGS.n_iters, FLAGS.step_size, FLAGS.scale_each)
+                            FLAGS.n_iters, FLAGS.step_size, FLAGS.scale_each, FLAGS.n_holes, FLAGS.length)
     else:
         attack = None
 
@@ -66,8 +66,8 @@ def train(**flag_kwargs):
 @click.option("--adv_train/--no_adv_train", is_flag=True, default=False)
 @click.option("--attack_loss", default='adv_only') # 'avg', 'adv_only', or 'logsumexp'
 @click.option("--rand_target/--no_rand_target", is_flag=True, default=True)
-# Attack options
-# Allowed values: ['pgd_linf', 'pgd_l2', 'fw_l1', 'jpeg_linf', 'jpeg_l2', 'jpeg_l1', 'elastic', 'fog', 'gabor', 'snow']
+# Attack options:
+# ['pgd_linf', 'pgd_l2', 'fw_l1', 'jpeg_linf', 'jpeg_l2', 'jpeg_l1', 'elastic', 'fog', 'gabor', 'snow', 'cutout']
 @click.option("--attack", default=None, type=str)
 @click.option("--epsilon", default=16.0, type=float)
 @click.option("--step_size", default=None, type=float)
@@ -75,6 +75,9 @@ def train(**flag_kwargs):
 @click.option("--n_iters", default=10, type=int)
 @click.option("--scale_each/--no_scale_each", is_flag=True, default=True)
 @click.option("--scale_eps/--no_scale_eps", is_flag=True, default=True)
+# Cutout attack specific options:
+@click.option("--n_holes", default=1, type=int)
+@click.option("--length", default=16, type=int)
 def main(**flags):
     train(**flags)
 

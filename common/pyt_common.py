@@ -5,7 +5,7 @@ import os
 import uuid
 
 from torchvision import models
-from attacks import PGDAttack, ElasticAttack, FrankWolfeAttack, JPEGAttack, GaborAttack, FogAttack, SnowAttack
+from attacks import PGDAttack, ElasticAttack, FrankWolfeAttack, JPEGAttack, GaborAttack, FogAttack, SnowAttack, Cutout
 from models import cifar10_resnet
 from common.logger import Logger
 
@@ -52,7 +52,7 @@ def get_model(dataset, resnet_size, nb_classes):
         return get_cifar10_model(resnet_size)
 
 
-def _get_attack(dataset, attack, eps, n_iters, step_size, scale_each):
+def _get_attack(dataset, attack, eps, n_iters, step_size, scale_each, n_holes, length):
     if dataset in ['imagenet', 'imagenet-c']:
         resol = 224
         elastic_kernel = 25
@@ -61,6 +61,9 @@ def _get_attack(dataset, attack, eps, n_iters, step_size, scale_each):
         resol = 32
         elastic_kernel = 5
         elastic_std = 3.0/224.0 * 32
+
+    if attack == 'cutout':
+        return functools.partial(Cutout, n_holes, length)
 
     if attack == 'pgd_linf':
         return functools.partial(PGDAttack, n_iters, eps,

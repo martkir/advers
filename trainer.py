@@ -40,7 +40,7 @@ class BaseTrainer(object):
     # The attack needs to be initialized after the cuda device is set
     def __init__(self, batch_size=32, base_lr=0.0125, momentum=0.9, wd=1e-4, epochs=90, warmup_epochs=5, stride=10,
                  label_smoothing=-1.0, rand_target=False, run_val=True, model=None, checkpoint_dir=None,
-                 dataset_path='/mnt/imagenet-test/', attack=None, attack_backward_steps=0, attack_loss='avg',
+                 dataset_path='/mnt/imagenet-test/', attack=None, attack_loss='avg',
                  scale_eps=False, rand_init=True, logger=None):
 
         # Training options:
@@ -64,7 +64,6 @@ class BaseTrainer(object):
 
         # Attack options
         self.attack = attack
-        self.attack_backward_steps = attack_backward_steps
         self.attack_loss = attack_loss
         self.scale_eps = scale_eps
         self.rand_init = rand_init
@@ -95,7 +94,6 @@ class BaseTrainer(object):
 
         if self.attack:
             self.attack = self.attack()
-            self.attack_backward_steps = self.attack.nb_backward_steps
 
         self.normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -132,6 +130,31 @@ class BaseTrainer(object):
     def _adjust_learning_rate(self, epoch):
         raise NotImplementedError
 
+    def _get_data_adv(self, data, target=None):
+        """
+        This function performs augments the given data by applying an attack. In order to apply an attack it must be
+        given certain fields (the model). These fields must be accessible in the <BaseTrainer>. The fields required
+        by an attack depends on the attack type.
+        """
+        data_adv = None
+        if self.attack.attack_name in ['cutout']:
+            data_adv = self.attack(data)
+
+        if self.attack.attack_name in ['pgd_linf', 'pgd_l2', 'fw_l1', 'jpeg_linf', 'jpeg_l2', 'jpeg_l1', 'elastic',
+                                       'fog', 'gabor', 'snow']:
+            attack_target = None
+            if self.rand_target:
+                attack_target = torch.randint(0, len(self.val_dataset.classes) - 1, target.size(),
+                                              dtype=target.dtype, device='cuda')
+                attack_target = torch.remainder(target + attack_target + 1, len(self.val_dataset.classes))
+            if self.rand_target:
+                data_adv = self.attack(self.model, data, attack_target, avoid_target=False,
+                                       scale_eps=self.scale_eps)
+            else:
+                data_adv = self.attack(self.model, data, target,
+                                       avoid_target=True, scale_eps=self.scale_eps)
+        return data_adv
+
     def _train_epoch(self, epoch):
         """
         note: train_loader, val_dataset are set by child class.
@@ -167,17 +190,7 @@ class BaseTrainer(object):
                         self.model.train()
 
                 if self.attack:
-                    if self.rand_target:
-                        attack_target = torch.randint(0, len(self.val_dataset.classes) - 1, target.size(),
-                                                      dtype=target.dtype, device='cuda')
-                        attack_target = torch.remainder(target + attack_target + 1, len(self.val_dataset.classes))
-
-                    if self.rand_target:
-                        data_adv = self.attack(self.model, data, attack_target, avoid_target=False,
-                                               scale_eps=self.scale_eps)
-                    else:
-                        data_adv = self.attack(self.model, data, target,
-                                               avoid_target=True, scale_eps=self.scale_eps)
+                    data_adv = self._get_data_adv(data, target)
                     output_adv = self.model(data_adv)
                     adv_loss = self._compute_loss(output_adv, target)
 
