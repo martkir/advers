@@ -1,58 +1,58 @@
 import click
-from trainer import CIFAR10Trainer
+from trainer import CIFAR10Experiment
 from common import pyt_common
 from common.flags_holder import FlagHolder
 
+BUILTIN_TRAINERS = {
+    'cifar-10': CIFAR10Experiment}
 
-def train(**flag_kwargs):
-    # The fields of the FLAGS object are the keys of the dictionary used to initialize it.
 
-    FLAGS = FlagHolder()
-    FLAGS.initialize(**flag_kwargs)  # stores all command line args in dictionary.
+class Engine(object):
+    def __init__(self, **config):
+        FLAGS = FlagHolder()
+        FLAGS.initialize(**config)
+        if FLAGS.step_size is None:
+            FLAGS.step_size = pyt_common.get_step_size(FLAGS.epsilon, FLAGS.n_iters, FLAGS.use_max_step)
+            FLAGS._dict['step_size'] = FLAGS.step_size
+        FLAGS.summary()
 
-    if FLAGS.step_size is None:
-        FLAGS.step_size = pyt_common.get_step_size(FLAGS.epsilon, FLAGS.n_iters, FLAGS.use_max_step)
-        FLAGS._dict['step_size'] = FLAGS.step_size
+        logger = pyt_common.init_logger('train', FLAGS._dict)
+        if FLAGS.checkpoint_dir is None:
+            FLAGS.checkpoint_dir = logger.log_dir
+        print('checkpoint at {}'.format(FLAGS.checkpoint_dir))
 
-    FLAGS.summary()
-
-    if FLAGS.dataset == 'cifar-10':
-        Trainer = CIFAR10Trainer
-    else:
-        raise NotImplementedError
-
-    logger = pyt_common.init_logger('train', FLAGS._dict)
-
-    if FLAGS.checkpoint_dir is None:
-        FLAGS.checkpoint_dir = logger.log_dir
-    print('checkpoint at {}'.format(FLAGS.checkpoint_dir))
-
-    model = pyt_common.get_model(FLAGS.dataset, FLAGS.resnet_size, 1000 // FLAGS.class_downsample_factor)
-    if FLAGS.adv_train:
-        attack = pyt_common.get_attack(FLAGS.dataset, FLAGS.attack, FLAGS.epsilon,
-                            FLAGS.n_iters, FLAGS.step_size, FLAGS.scale_each, FLAGS.n_holes, FLAGS.length)
-    else:
+        model = pyt_common.get_model(FLAGS.dataset, FLAGS.resnet_size, 1000 // FLAGS.class_downsample_factor)
         attack = None
+        if config['adv_train']:
+            attack = pyt_common.get_attack(**config)
 
-    trainer = Trainer(
-        # model/checkpoint options
-        model=model, checkpoint_dir=FLAGS.checkpoint_dir, dataset_path=FLAGS.dataset_path,
-        # attack options
-        attack=attack, scale_eps=FLAGS.scale_eps, attack_loss=FLAGS.attack_loss,
-        # training options
-        batch_size=FLAGS.batch_size, epochs=FLAGS.epochs, stride=FLAGS.class_downsample_factor,
-        label_smoothing=FLAGS.label_smoothing, rand_target=FLAGS.rand_target,
-        # logging options
-        logger=logger)
-    trainer.train()
+        self.trainer = BUILTIN_TRAINERS[config['dataset']](
+            # model/checkpoint options
+            model=model, checkpoint_dir=FLAGS.checkpoint_dir, dataset_path=FLAGS.dataset_path,
+            # attack options
+            attack=attack, scale_eps=FLAGS.scale_eps, attack_loss=FLAGS.attack_loss,
+            # training options
+            batch_size=FLAGS.batch_size, epochs=FLAGS.epochs, stride=FLAGS.class_downsample_factor,
+            label_smoothing=FLAGS.label_smoothing, rand_target=FLAGS.rand_target,
+            # data options:
+            dataset=FLAGS.dataset,
+            pre_augment=FLAGS.pre_augment,
+            preprocess_options=FLAGS.preprocess_options,
+            # logging options
+            logger=logger)
 
-    print("Training finished.")
+    def run(self):
+        self.trainer.train()
+        print("Training finished.")
 
 
 @click.command()
 # Dataset options ('cifar-10', 'imagenet'):
 @click.option('--dataset', default='cifar-10')
 @click.option("--dataset_path", default='.', help="Location of the training data")
+@click.option("--pre_augment", default=True, type=bool, help="Whether to train in pre-augment mode.")
+@click.option("--preprocess_options", default='standard normalize', type=str,
+              help="The augmentations to apply for data preprocessing")
 # Model options
 @click.option("--resnet_size", default=50)
 @click.option("--class_downsample_factor", default=1, type=int)
@@ -63,12 +63,12 @@ def train(**flag_kwargs):
 @click.option("--checkpoint_dir", default=None, help="Location to write the final ckpt to")
 @click.option("--use_fp16/--no_fp16", is_flag=True, default=False)
 # Adversarial training options
-@click.option("--adv_train/--no_adv_train", is_flag=True, default=False)
-@click.option("--attack_loss", default='adv_only') # 'avg', 'adv_only', or 'logsumexp'
+@click.option("--adv_train", default=False)
+@click.option("--attack_loss", default='adv_only')  # 'avg', 'adv_only', or 'logsumexp'
 @click.option("--rand_target/--no_rand_target", is_flag=True, default=True)
 # Attack options:
 # ['pgd_linf', 'pgd_l2', 'fw_l1', 'jpeg_linf', 'jpeg_l2', 'jpeg_l1', 'elastic', 'fog', 'gabor', 'snow', 'cutout']
-@click.option("--attack", default=None, type=str)
+@click.option("--attack_name", default=None, type=str)
 @click.option("--epsilon", default=16.0, type=float)
 @click.option("--step_size", default=None, type=float)
 @click.option("--use_max_step", is_flag=True, default=False)
@@ -78,8 +78,13 @@ def train(**flag_kwargs):
 # Cutout attack specific options:
 @click.option("--n_holes", default=1, type=int)
 @click.option("--length", default=16, type=int)
+# PatchGaussian specific options:
+@click.option("--patch_size", default=16, type=int)
+@click.option("--max_scale", default=1, type=int)
+@click.option("--sample_up_to", default=False, type=bool)
 def main(**flags):
-    train(**flags)
+    engine = Engine(**flags)
+    engine.run()
 
 
 if __name__ == '__main__':
