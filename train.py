@@ -2,9 +2,34 @@ import click
 from trainer import CIFAR10Experiment
 from common import pyt_common
 from common.flags_holder import FlagHolder
+from attacks import Cutout, PatchGaussian
+from common.logger import Logger
+import datetime
+import os
+import uuid
+
 
 BUILTIN_TRAINERS = {
     'cifar-10': CIFAR10Experiment}
+
+
+def init_logger(job_type, flags):
+    dir_path = os.getcwd()
+    time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = str(uuid.uuid4())[:8]
+    dir_str = '{}-{}-{}'.format(job_type, time_str, run_id)
+    log_dir = os.path.join(dir_path, job_type, dir_str)
+    os.makedirs(log_dir, exist_ok=True)
+    logger = Logger(log_dir=log_dir, flags=flags)
+    return logger
+
+
+def get_attack(**kwargs):
+    options = {
+        'cutout': Cutout(kwargs['n_holes'], kwargs['length']),
+        'patch_gaussian': PatchGaussian(kwargs['patch_size'], kwargs['max_scale'], kwargs['sample_up_to'])}
+
+    return options[kwargs['attack_name']]
 
 
 class Engine(object):
@@ -16,7 +41,7 @@ class Engine(object):
             FLAGS._dict['step_size'] = FLAGS.step_size
         FLAGS.summary()
 
-        logger = pyt_common.init_logger('train', FLAGS._dict)
+        logger = init_logger('train', FLAGS._dict)
         if FLAGS.checkpoint_dir is None:
             FLAGS.checkpoint_dir = logger.log_dir
         print('checkpoint at {}'.format(FLAGS.checkpoint_dir))
@@ -24,7 +49,7 @@ class Engine(object):
         model = pyt_common.get_model(FLAGS.dataset, FLAGS.resnet_size, 1000 // FLAGS.class_downsample_factor)
         attack = None
         if config['adv_train']:
-            attack = pyt_common.get_attack(**config)
+            attack = get_attack(**config)
 
         self.trainer = BUILTIN_TRAINERS[config['dataset']](
             # model/checkpoint options
