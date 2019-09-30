@@ -1,25 +1,6 @@
-import datetime
-import functools
 import math
-import os
-import uuid
-
 from torchvision import models
-from attacks import PGDAttack, ElasticAttack, FrankWolfeAttack, JPEGAttack, GaborAttack, FogAttack, SnowAttack, Cutout
 from models import cifar10_resnet
-from common.logger import Logger
-
-
-def init_logger(job_type, flags):
-    dir_path = os.getcwd()
-    time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_id = str(uuid.uuid4())[:8]
-    dir_str = '{}-{}-{}'.format(job_type, time_str, run_id)
-    log_dir = os.path.join(dir_path, job_type, dir_str)
-    os.makedirs(log_dir, exist_ok=True)
-
-    logger = Logger(job_type, run_id, log_dir=log_dir, flags=flags)
-    return logger
 
 
 def get_imagenet_model(resnet_size, nb_classes):
@@ -50,64 +31,6 @@ def get_model(dataset, resnet_size, nb_classes):
         return get_imagenet_model(resnet_size, nb_classes)
     elif dataset in ['cifar-10', 'cifar-10-c']:
         return get_cifar10_model(resnet_size)
-
-
-def _get_attack(dataset, attack, eps, n_iters, step_size, scale_each, n_holes, length):
-    if dataset in ['imagenet', 'imagenet-c']:
-        resol = 224
-        elastic_kernel = 25
-        elastic_std = 3
-    elif dataset in ['cifar-10', 'cifar-10-c']:
-        resol = 32
-        elastic_kernel = 5
-        elastic_std = 3.0/224.0 * 32
-
-    if attack == 'cutout':
-        return functools.partial(Cutout, n_holes, length)
-
-    if attack == 'pgd_linf':
-        return functools.partial(PGDAttack, n_iters, eps,
-                                 step_size, resol, norm='linf',
-                                 scale_each=scale_each)
-    elif attack == 'pgd_l2':
-        return functools.partial(PGDAttack, n_iters, eps,
-                                 step_size, resol, norm='l2',
-                                 scale_each=scale_each)
-    elif attack == 'fw_l1':
-        return functools.partial(FrankWolfeAttack, n_iters, eps,
-                                 resol, scale_each=scale_each)
-    elif attack == 'jpeg_linf':
-        return functools.partial(JPEGAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each,
-                                 opt='linf')
-    elif attack == 'jpeg_l2':
-        return functools.partial(JPEGAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each,
-                                 opt='l2')
-    elif attack == 'jpeg_l1':
-        return functools.partial(JPEGAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each,
-                                 opt='l1')
-    elif attack == 'elastic':
-        return functools.partial(ElasticAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each,
-                                 kernel_size=elastic_kernel,
-                                 kernel_std=elastic_std)
-    elif attack == 'fog':
-        return functools.partial(FogAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each)
-    elif attack == 'gabor':
-        return functools.partial(GaborAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each)
-    elif attack == 'snow':
-        return functools.partial(SnowAttack, n_iters, eps,
-                                 step_size, resol, scale_each=scale_each)
-    else:
-        raise NotImplementedError    
-
-
-def get_attack(*args, **kwargs):
-    return _get_attack(*args, **kwargs)
 
 
 def get_step_size(epsilon, n_iters, use_max=False):
