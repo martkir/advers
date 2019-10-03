@@ -12,6 +12,10 @@ Remarks:
 
 * `preprocess_options` is used to specify the order in which the data augmentations are applied. In the above example, during training, the images in a batch are transformed by first adversarially attacking them, then applying standard data augmentation (i.e. random crop, and horizontal flip), after finally normalizing them.
 
+<!-- todo: explain that the trainer in normal mode still calculates advers accuracy. the only difference is not it doesn't train on
+adversarial batches - just the clean ones. todo: preprocess_options flag should be split up into two: advers_options: , normal options: this way you can still specify the order of augmentations.
+-->
+
 <!-- `python eval.py --dataset imagenet --class_downsample_factor 10 --attack pgd_linf --epsilon 16.0 --n_iters 100 --step_size 1 --ckpt_path [CKPT_PATH] --dataset_path [DATASET_PATH]`)
 
 will evaluate a ResNet-50 model checkpoint located at `CKPT_PATH` against the L<sub>&infin;</sub> attack with &epsilon;=16, 100 iterations, and step size 1 on the ImageNet-100 validation set, located at `DATASET_PATH`.  The choices of attack we provide are: `pgd_linf, pgd_l2, fw_l1, jpeg_linf, jpeg_l2, jpeg_l1, elastic, fog, gabor, snow`.
