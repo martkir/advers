@@ -8,10 +8,16 @@ The module `train.py` can be used for both normal and adversarial training. For 
 
 will train a ResNet20 model using SGD with weight decay and momentum on CIFAR-10 for 100 epochs.
 
-Remarks:
+Explanation of arguments:
 * `--normal_aug` is used to specify the augmentation to apply to the clean data. The default setting is to apply random cropping,  horizontal flipping, and normalization.
 * `--advers_aug` is the augmentations applied to the data in order to create an adversarial example. The default is `advers-standard-normalize`. An adversarial example is constructed by first applying an attack (specified by `--attack`), then the standard augmentations described above.
 * If `--mode` is `normal` the model parameters are learened by using the clean data. The adversarial attack that is specified will merely be used to evaluate a model's robustness against said attack. If `--mode` is `advers` the model will be trained using on the adversarial examples using the attack specified by `--attack`.
+
+Output of training:
+
+The output of a training experiment is stored in `train/train-[id]/checkpoints`, where `[id]` is a unique sequence of characters generated each time an training experiment is ran. This folder stores the folling three items:
+* `checkpoints`. This is the folder where the model parameters and optimizer are saved every epoch.
+* `images`
 
 <!-- todo: explain that the trainer in normal mode still calculates advers accuracy. the only difference is not it doesn't train on
 adversarial batches - just the clean ones. todo: preprocess_options flag should be split up into two: advers_options: , normal options: this way you can still specify the order of augmentations.
