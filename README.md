@@ -15,7 +15,7 @@ Explanation of arguments:
 
 Output of training:
 
-The output of a training experiment is stored in `train/train-[id]/checkpoints`, where `[id]` is a unique sequence of characters generated each time an training experiment is ran. This folder stores the folling three items:
+The output of a training experiment is stored in `train/train-[id]/checkpoints`, where `[id]` is a unique sequence of characters generated each time a training experiment is ran. This folder stores the following three items:
 * `checkpoints`. This is the folder where the model parameters and optimizer are saved every epoch.
 * `images`
 
