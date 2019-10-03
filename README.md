@@ -1,16 +1,17 @@
 # advers
 
-### Adversarial and normal training
+### Normal & Adversarial Training
 
-The module  `train.py` can be used to train a model; both adversarially and normally. Example:
+The module `train.py` can be used for both normal and adversarial training. For example:
 
-`python train.py --dataset cifar-10 --dataset_path data/cifar-10 --pre_augment True --adv_train True --preprocess_options advers-standard-normalize --resnet_size 20 --base_lr 0.1 --wd 1e-4 --momentum 0.9`
+`python train.py --mode normal --normal_aug standard-normalize --advers_aug advers-standard-normalize --dataset cifar-10 --dataset_path data/cifar-10 --pre_augment True --preprocess_options advers-standard-normalize --resnet_size 20 --base_lr 0.1 --wd 1e-4 --momentum 0.9`
 
-will adversarially train a ResNet20 model using SGD with weight decay and momentum on CIFAR-10 for 100 epochs.
+will train a ResNet20 model using SGD with weight decay and momentum on CIFAR-10 for 100 epochs.
 
 Remarks:
-
-* `preprocess_options` is used to specify the order in which the data augmentations are applied. In the above example, during training, the images in a batch are transformed by first adversarially attacking them, then applying standard data augmentation (i.e. random crop, and horizontal flip), after finally normalizing them.
+* `--normal_aug` is used to specify the augmentation to apply to the clean data. The default setting is to apply random cropping,  horizontal flipping, and normalization.
+* `--advers_aug` is the augmentations applied to the data in order to create an adversarial example. The default is `advers-standard-normalize`. An adversarial example is constructed by first applying an attack (specified by `--attack`), then the standard augmentations described above.
+* If `--mode` is `normal` the model parameters are learened by using the clean data. The adversarial attack that is specified will merely be used to evaluate a model's robustness against said attack. If `--mode` is `advers` the model will be trained using on the adversarial examples using the attack specified by `--attack`.
 
 <!-- todo: explain that the trainer in normal mode still calculates advers accuracy. the only difference is not it doesn't train on
 adversarial batches - just the clean ones. todo: preprocess_options flag should be split up into two: advers_options: , normal options: this way you can still specify the order of augmentations.
