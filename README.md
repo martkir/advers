@@ -29,20 +29,10 @@ The optimizer that is used is SGD with weight decay, and momentum. Flags `base_l
 
 Output:
 
-The output of a training experiment is stored in `train/train-[id]/checkpoints`, where `[id]` is a unique sequence of characters generated each time a training experiment is ran. This folder stores the following three items:
-* `checkpoints`. This is the folder where the model parameters and optimizer are saved every epoch.
-* `images`
+Each time an epoch is completed any output generated during that epoch is saved. The output of a training experiment is stored in `train/train-[id]/checkpoints` (where `[id]` is a unique sequence of characters generated). The content of this folder is as follows.
 
-<!-- todo: explain that the trainer in normal mode still calculates advers accuracy. the only difference is not it doesn't train on
-adversarial batches - just the clean ones. todo: preprocess_options flag should be split up into two: advers_options: , normal options: this way you can still specify the order of augmentations.
--->
-
-<!-- `python eval.py --dataset imagenet --class_downsample_factor 10 --attack pgd_linf --epsilon 16.0 --n_iters 100 --step_size 1 --ckpt_path [CKPT_PATH] --dataset_path [DATASET_PATH]`)
-
-will evaluate a ResNet-50 model checkpoint located at `CKPT_PATH` against the L<sub>&infin;</sub> attack with &epsilon;=16, 100 iterations, and step size 1 on the ImageNet-100 validation set, located at `DATASET_PATH`.  The choices of attack we provide are: `pgd_linf, pgd_l2, fw_l1, jpeg_linf, jpeg_l2, jpeg_l1, elastic, fog, gabor, snow`.
-
-If the flag `--use_wandb` is set, results will be logged to WandB.  Otherwise, if the flag `--no_wandb` is set, results will be logged to the folder `./eval/eval-[YYYYmmDD_HHMMSS]-[RUN_ID]`, which will contain:
-
-* file `summary.log`, a JSON file containing a single dict with configuration parameters and results of the run
-* folder `images` containing (1) `adv_[X].png`, `orig_[X].png`, attacked and original version of the first image in each class X and (2) `init_adv_[X].png`, `init_orig_[X].png`, attacked and original versions of all images in the first evaluation batch.) -->
+* `checkpoints` the folder where the model paramters and optimizer are saved every epoch.
+* `config.csv` stores all the command line arguments that were used to run the training experiment.
+* `all.csv` contains all statistics that were generated during a training experiment. This includes training (validation) loss, accuracy, both clean and adversarial.
+* `images` contains plots of certain statistics e.g. train and valid accuracy vs. epochs.
 
