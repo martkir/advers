@@ -73,8 +73,7 @@ def experiment_1():
         'epochs': 100,
         'attack_name': 'cutout',
         'n_holes': 1,  # num. patches.
-        'length': 16,  # patch_size.
-    }  # default 90.
+        'length': 16}  # patch_size.
 
     config_patch_gauss = {
         'dataset': 'cifar-10',
@@ -99,47 +98,81 @@ def experiment_1():
 
     # todo: IMPORTANT: Fix the cehckpoint location - wrong atm!
 
-
-
-
-
     pass
 
 
 def cutout_trial():
-    """
-    Patch Gaussian Implementation details:
-
-    Patch Gaussian is trained on adversarial examples only. The data augmentations are applied in the
-    pre-processing stage (not during training). The pre-processing steps are:
-    1. Apply Patch Gaussian on unnormalized images in [0, 255] range.
-    2. Apply Random Flipping and Cropping.
-    3. Normalize.
-
-    The above preprocessing steps are specified using the --preprocess_options flag. More specifically, by writing:
-    <--preprocess_options advers standard normalize>.
-
-    <--pre_augment True> specifies that the adversarial augmentations are applied at the preprocessing stage.
-    """
-
     config = {
+        'mode': 'advers',
         'dataset': 'cifar-10',
-        'dataset_path': 'data/cifar-10',  # where cifar-10 is downloaded (if not already there).
-        'pre_augment': True,  # which trainer to use.
-        'adv_train': True,  # whether to adv. train.
-        'preprocess_options': 'advers-standard-normalize',
+        'dataset_path': 'data/cifar-10',
+        'normal_aug': 'standard-normalize',
+        'advers_aug': 'advers-standard-normalize',
+        # model
         'resnet_size': 20,
-        'checkpoint_dir': 'train',
+        # optimizer
         'base_lr': 0.1,
         'wd': 1e-4,
         'momentum': 0.9,
-        'batch_size': 128,  # default 32.
+        # train opts:
+        'batch_size': 128,
         'epochs': 100,
+        # attack opts:
         'attack_name': 'cutout',
-        'n_holes': 1,  # num. patches.
-        'length': 16,  # patch_size.
-        }  # default 90.
+        'n_holes': 1,
+        'length': 16
+    }
+
+    # patch_gaussian (works)
+    config = {
+        'mode': 'advers',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        'normal_aug': 'standard-normalize',
+        'advers_aug': 'advers-standard-normalize',
+        # model
+        'resnet_size': 20,
+        # optimizer
+        'base_lr': 0.1,
+        'wd': 1e-4,
+        'momentum': 0.9,
+        # train opts:
+        'batch_size': 128,
+        'epochs': 100,
+        # attack opts:
+        'attack_name': 'patch_gaussian',
+        'patch_size': 16,
+        'max_scale': 1,
+        'sample_up_to': False
+    }
+
+    # pgd_inf
+    config = {
+        'mode': 'advers',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        'normal_aug': 'standard-normalize',
+        'advers_aug': 'advers-standard-normalize',
+        # model
+        'resnet_size': 20,
+        # optimizer
+        'base_lr': 0.1,
+        'wd': 1e-4,
+        'momentum': 0.9,
+        # train opts:
+        'batch_size': 128,
+        'epochs': 100,
+        # attack opts:
+        'attack_name': 'pgd_inf',
+        'n_iters': 10,
+        'epsilon': 16.0,
+        'step_size': None,
+        'scale_each': True
+    }
 
     command_string = 'python train.py '
     command_string += ' '.join(['--{} {}'.format(k, v) for k, v in config.items()])
     os.system(command_string)
+
+
+cutout_trial()
