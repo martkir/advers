@@ -48,11 +48,11 @@ class PatchGaussian(nn.Module):
         y = np.random.randint(0, img_height + 1)
 
         # compute where the patch will start and end.
-        start_x = np.max(x - np.floor(self.patch_size / 2), 0)
-        end_x = np.min(x + np.ceil(self.patch_size / 2), img_width)
+        start_x = int(np.max([x - np.floor(self.patch_size / 2), 0]))
+        end_x = int(np.min([x + np.ceil(self.patch_size / 2), img_width]))
 
-        start_y = np.max(y - np.floor(self.patch_size / 2), 0)
-        end_y = np.min(y + np.ceil(self.patch_size / 2), img_height)
+        start_y = int(np.max([y - np.floor(self.patch_size / 2), 0]))
+        end_y = int(np.min([y + np.ceil(self.patch_size / 2), img_height]))
 
         # create mask
         if inverse:
