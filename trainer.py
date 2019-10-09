@@ -72,7 +72,6 @@ def correct(output, target):
 
 class BaseTrainer(object):
     def __init__(self, **kwargs):
-
         self.train_loader = kwargs['train_loader']
         self.train_dataset = kwargs['train_dataset']
         self.val_loader = kwargs['val_loader']
@@ -82,6 +81,12 @@ class BaseTrainer(object):
         self.cuda = kwargs['cuda']
         self.logger = kwargs['logger']
         self.attack = kwargs['attack']
+
+        # pgd:
+        self.rand_target = kwargs['rand_target']
+        self.scale_eps = kwargs['scale_eps']
+
+        # idk:
         self.label_smoothing = 0
 
     def _compute_loss(self, output, target):
@@ -98,20 +103,8 @@ class BaseTrainer(object):
     def _adjust_learning_rate(self, epoch):
         pass
 
-    def train_epoch(self, epoch, model, optimizer):
+    def _get_batch(self, *args, **kwargs):
         raise NotImplementedError
-
-
-class TrainerAdversCutout(BaseTrainer):
-    """
-    This class implements the functionality for adversarially training a model. This class assumes that the data
-    augmentation is applied using <torchvision.transforms>.
-
-    Note: The loader returns both clean and adversarial data. In order to do this a custom DataSet was created (see
-    CIFAR10Advers).
-    """
-    def __init__(self, **kwargs):
-        super(TrainerAdversCutout, self).__init__(**kwargs)
 
     def train_epoch(self, epoch, model, optimizer):
         model.train()
@@ -120,11 +113,12 @@ class TrainerAdversCutout(BaseTrainer):
         train_std_loss = Metric('train_std_loss')
         train_std_acc = Metric('train_std_acc')
 
+        if self.attack:
+            self.attack.set_epoch(epoch)
+
         with tqdm(total=len(self.train_loader)) as pbar:
-            for batch_idx, (data, data_adv, target) in enumerate(self.train_loader):
-                if self.cuda:
-                    data, data_adv, target = data.cuda(non_blocking=True), data_adv.cuda(non_blocking=True), \
-                                             target.cuda(non_blocking=True)
+            for batch_idx, batch in enumerate(self.train_loader):
+                data, data_adv, target = self._get_batch(model, batch)
                 self._adjust_learning_rate(epoch)
                 loss = torch.zeros([], dtype=torch.float32, device='cuda')
 
@@ -145,6 +139,7 @@ class TrainerAdversCutout(BaseTrainer):
                     loss += std_loss  # update using clean loss.
 
                 else:
+
                     # compute clean accuracy & loss (eval mode):
                     model.eval()
                     output = model(data)
@@ -187,10 +182,7 @@ class TrainerAdversCutout(BaseTrainer):
         This function iterates through the dataset. Each iteration processes a batch of data. The processing of a batch
         consists of:
         (1) Calculating the "clean" accuracy of our model on the batch.
-        (2) Calculating the adversarial accuracy of our model on the batch - both normal and worst case.
-
-        Step (2) consists of creating normal and worst case adversarial examples (from the batch). Note: Some attack
-        do not have a worst case.
+        (2) Calculating the adversarial accuracy of our model on the batch.
         """
 
         model.eval()
@@ -199,10 +191,9 @@ class TrainerAdversCutout(BaseTrainer):
         val_adv_acc = Metric('val_adv_acc')
         val_adv_loss = Metric('val_adv_loss')
 
-        for batch_idx, (data, data_adv, target) in enumerate(self.val_loader):
-            if self.cuda:
-                data, data_adv, target = data.cuda(non_blocking=True), data_adv.cuda(non_blocking=True), \
-                                         target.cuda(non_blocking=True)
+        for batch_idx, batch in enumerate(self.val_loader):
+            data, data_adv, target = self._get_batch(model, batch)
+
             with torch.no_grad():
                 # Step 1: Calculating "clean" accuracy:
                 output = model(data)
@@ -228,6 +219,39 @@ class TrainerAdversCutout(BaseTrainer):
         return model, optimizer, log_dict
 
 
+class TrainerCutout(BaseTrainer):
+    def __init__(self, **kwargs):
+        super(TrainerCutout, self).__init__(**kwargs)
+
+    def _get_batch(self, model, batch):
+        data, data_adv, target = batch
+        if self.cuda:
+            data, data_adv, target = data.cuda(non_blocking=True), data_adv.cuda(non_blocking=True), \
+                                     target.cuda(non_blocking=True)
+
+        return data, data_adv, target
+
+
+class TrainerPGD(BaseTrainer):
+    def __init__(self, **kwargs):
+        super(TrainerPGD, self).__init__(**kwargs)
+
+    def _get_batch(self, model, batch):
+        data, target = batch
+        if self.cuda:
+            data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
+
+        if self.rand_target:  # targeted attack. target chosen at random.
+            attack_target = torch.randint(0, len(self.val_dataset.classes) - 1, target.size(), dtype=target.dtype,
+                                          device='cuda')
+            attack_target = torch.remainder(target + attack_target + 1, len(self.val_dataset.classes))
+            data_adv = self.attack(model, data, attack_target, avoid_target=False, scale_eps=self.scale_eps)
+        else:  # non_targeted attack.
+            data_adv = self.attack(model, data, target, avoid_target=True, scale_eps=self.scale_eps)
+
+        return data, data_adv, target
+
+
 class BaseExperiment(object):
 
     def __init__(self, model, **kwargs):
@@ -250,8 +274,13 @@ class BaseExperiment(object):
 
         # attack options:
         self.attack = kwargs['attack']
-        self.normal_aug = kwargs['normal_aug']
-        self.advers_aug = kwargs['advers_aug']
+        self.attack_name = kwargs['attack_name']
+        # pgd:
+        self.n_iters = kwargs['n_iters']
+        self.epsilon = kwargs['epsilon']
+        self.step_size = kwargs['step_size']
+        self.rand_target = kwargs['rand_target']
+        self.scale_eps = kwargs['scale_eps']
 
         # logging options:
         self.logger = kwargs['logger']
@@ -350,78 +379,72 @@ class CIFAR10Experiment(BaseExperiment):
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
 
-    def _get_transform(self, transform_options):
+    def _init_loaders_pgd(self):
         normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-
-        transform = transforms.Compose([])
-        is_tensor = False
-        for option in transform_options:  # e.g. [standard, normalize].
-            if option == 'standard':
-                if is_tensor:
-                    transform.transforms.append(transforms.ToPILImage())
-                    is_tensor = False
-                transform.transforms.append(transforms.RandomCrop(32, padding=4))
-                transform.transforms.append(transforms.RandomHorizontalFlip())
-
-            if option == 'advers':
-                if not is_tensor:
-                    transform.transforms.append(transforms.ToTensor())
-                    is_tensor = True
-                transform.transforms.append(self.attack)
-
-            if option == 'normalize':
-                if not is_tensor:
-                    transform.transforms.append(transforms.ToTensor())
-                    is_tensor = True
-                transform.transforms.append(normalize)
-
-        if not is_tensor:
-            transform.transforms.append(transforms.ToTensor())
-
-        return transform
-
-    def _init_loaders(self):
-        normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                                         std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-
-        normal_transform = self._get_transform(self.normal_aug.split('-'))
-        advers_transform = self._get_transform(self.advers_aug.split('-'))
         clean_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        standard_transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, 4),
+                transforms.ToTensor(),
+                normalize])
 
-        if self.mode == 'advers':
-            self.train_dataset = DatasetAdversCIFAR10(root=self.dataset_path, download=True, train=True,
-                                                      transform=clean_transform, transform_adv=advers_transform)
-            # the data transformed with <advers_transform> is used to train model with.
-            # the data transformed with <clean_transform> is used to evaluate the training loss with.
+        self.train_dataset = datasets.CIFAR10(root=self.dataset_path, download=True, train=True,
+                                              transform=standard_transform)
+        self.val_dataset = datasets.CIFAR10(root=self.dataset_path, train=False, transform=clean_transform)
 
-        else:
-            self.train_dataset = DatasetAdversCIFAR10(root=self.dataset_path, download=True, train=True,
-                                                      transform=normal_transform, transform_adv=advers_transform)
+        self.train_loader = torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.batch_size,
+            shuffle=True, pin_memory=True)
 
-            # data with <normal_transform> is used to train model + test clean train loss.
-            # data with <advers_transform> is used to test advers train loss.
+        self.val_loader = torch.utils.data.DataLoader(
+            self.val_dataset, batch_size=self.batch_size,
+            shuffle=False, pin_memory=True)
 
+    def _init_loaders_cutout(self):
+        normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
+                                         std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
+
+        clean_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        standard_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, 4),
+            transforms.ToTensor(),
+            normalize])
+
+        # advers attack:
+        advers_transform = transforms.Compose([])
+        advers_transform.transforms.append(transforms.ToTensor())
+        advers_transform.transforms.append(self.attack)
+        # standard augmentations:
+        advers_transform.transforms.append(transforms.ToPILImage())
+        advers_transform.transforms.append(transforms.RandomHorizontalFlip())
+        advers_transform.transforms.append(transforms.RandomCrop(32, padding=4))
+        # normalize:
+        advers_transform.transforms.append(transforms.ToTensor())
+        advers_transform.transforms.append(normalize)
+
+        self.train_dataset = DatasetAdversCIFAR10(root=self.dataset_path, download=True, train=True,
+                                                  transform=standard_transform, transform_adv=advers_transform)
         self.val_dataset = DatasetAdversCIFAR10(root=self.dataset_path, train=False, transform=clean_transform,
                                                 transform_adv=advers_transform)
 
         self.train_loader = torch.utils.data.DataLoader(
-                self.train_dataset, batch_size=self.batch_size,
-                shuffle=True, pin_memory=True)
+            self.train_dataset, batch_size=self.batch_size,
+            shuffle=True, pin_memory=True)
 
         self.val_loader = torch.utils.data.DataLoader(
-                self.val_dataset, batch_size=self.batch_size,
-                shuffle=False, pin_memory=True)
+            self.val_dataset, batch_size=self.batch_size,
+            shuffle=False, pin_memory=True)
+
+    def _init_loaders(self):
+        if self.attack_name in ['cutout', 'patch_gaussian']:
+            self._init_loaders_cutout()
+        else:
+            self._init_loaders_pgd()
 
     def _init_trainer(self):
-        kwargs = {
-            'train_loader': self.train_loader,
-            'train_dataset': self.train_dataset,
-            'val_loader': self.val_loader,
-            'val_dataset': self.val_dataset,
-            'cuda': self.cuda,
-            'logger': self.logger,
-            'attack': self.attack,
-            'mode': self.mode}
-
-        self.trainer = TrainerAdversCutout(**kwargs)
+        if self.attack_name in ['cutout', 'patch_gaussian']:
+            self.trainer = TrainerCutout(**self.__dict__)
+        else:
+            self.trainer = TrainerPGD(**self.__dict__)
