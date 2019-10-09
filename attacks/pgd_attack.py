@@ -1,6 +1,4 @@
 import random
-
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -91,6 +89,7 @@ class PGDAttack(AttackWrapper):
             return torch.zeros(shape, requires_grad=True, device='cuda')
     
     def _forward(self, pixel_model, pixel_img, target, avoid_target=True, scale_eps=False):
+
         if scale_eps:
             if self.scale_each:
                 rand = torch.rand(pixel_img.size()[0], device='cuda')
