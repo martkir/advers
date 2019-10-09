@@ -58,86 +58,70 @@ def run(config_list):
 
 
 def experiment_1():
-    config_cutout = {
-        'dataset': 'cifar-10',
-        'dataset_path': 'data/cifar-10',  # where cifar-10 is downloaded (if not already there).
-        'pre_augment': True,  # which trainer to use.
-        'adv_train': True,  # whether to adv. train.
-        'preprocess_options': 'advers-standard-normalize',
-        'resnet_size': 20,
-        'checkpoint_dir': 'train',
-        'base_lr': 0.1,
-        'wd': 1e-4,
-        'momentum': 0.9,
-        'batch_size': 128,  # default 32.
-        'epochs': 100,
-        'attack_name': 'cutout',
-        'n_holes': 1,  # num. patches.
-        'length': 16}  # patch_size.
-
-    config_patch_gauss = {
+    config_normal = {
+        'mode': 'normal',
         'dataset': 'cifar-10',
         'dataset_path': 'data/cifar-10',
-        'pre_augment': True,
-        'adv_train': True,
-        'preprocess_options': 'advers-standard-normalize',
-        'resnet_size': 20,
-        'checkpoint_dir': 'train',
-        'base_lr': 0.1,
-        'wd': 1e-4,
-        'momentum': 0.9,
-        'batch_size': 128,
-        'epochs': 100,
-        'attack_name': 'patch_gaussian',
-        'patch_size': 16,
-        'max_scale': 1,
-        'sample_up_to': False}
-
-    config_list = [config_patch_gauss, config_cutout]
-    run(config_list)
-
-    # todo: IMPORTANT: Fix the cehckpoint location - wrong atm!
-
-    pass
-
-
-def cutout_trial():
-    config = {
-        'mode': 'advers',
-        'dataset': 'cifar-10',
-        'dataset_path': 'data/cifar-10',
-        'normal_aug': 'standard-normalize',
-        'advers_aug': 'advers-standard-normalize',
         # model
-        'resnet_size': 20,
+        'resnet_size': 56,
         # optimizer
         'base_lr': 0.1,
         'wd': 1e-4,
         'momentum': 0.9,
         # train opts:
-        'batch_size': 128,
+        'batch_size': 32,
         'epochs': 100,
         # attack opts:
-        'attack_name': 'cutout',
+        'attack_name': 'cutout',  # because fastest.
         'n_holes': 1,
         'length': 16
     }
 
-    # patch_gaussian (works)
-    config = {
+    config_pgd_linf = {
         'mode': 'advers',
         'dataset': 'cifar-10',
         'dataset_path': 'data/cifar-10',
-        'normal_aug': 'standard-normalize',
-        'advers_aug': 'advers-standard-normalize',
         # model
-        'resnet_size': 20,
+        'resnet_size': 56,  # check.
+        # optimizer
+        'base_lr': 0.1,  # check.
+        'wd': 1e-4,  # check.
+        'momentum': 0.9,  # check.
+        # train opts:
+        'batch_size': 32,  # check.
+        'epochs': 100,  # check.
+        # attack opts:
+        'attack_name': 'pgd_linf',
+        'n_iters': 10,
+        'epsilon': 32.0}
+
+    config_pgd_l2 = config_pgd_linf
+    config_pgd_l2['attack_name'] = 'pgd_l2'
+    config_pgd_l2['epsilon'] = 4800
+
+    config_pgd_l1 = config_pgd_linf
+    config_pgd_l1['attack_name'] = 'pgd_l1'
+    config_pgd_l1['epsilon'] = 612000
+
+    """
+    note: in patch gaussian paper on cifar-10 a different model is used. for this experiment i will use the same model
+    as in the uar paper.
+    """
+
+    # todo: check gauss params.
+    # patch_gaussian
+    config_patch_gaussian = {
+        'mode': 'advers',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        # model
+        'resnet_size': 56,
         # optimizer
         'base_lr': 0.1,
         'wd': 1e-4,
         'momentum': 0.9,
         # train opts:
-        'batch_size': 128,
+        'batch_size': 32,
         'epochs': 100,
         # attack opts:
         'attack_name': 'patch_gaussian',
@@ -146,33 +130,37 @@ def cutout_trial():
         'sample_up_to': False
     }
 
-    # pgd_inf
+    config_list = [
+        config_normal,
+        config_pgd_linf,
+        config_pgd_l2,
+        config_pgd_l1,
+        config_patch_gaussian
+    ]
+
+    run(config_list)
+
+
+def test_single():
     config = {
-        'mode': 'advers',
+        'mode': 'normal',
         'dataset': 'cifar-10',
         'dataset_path': 'data/cifar-10',
-        'normal_aug': 'standard-normalize',
-        'advers_aug': 'advers-standard-normalize',
         # model
-        'resnet_size': 20,
+        'resnet_size': 56,
         # optimizer
         'base_lr': 0.1,
         'wd': 1e-4,
         'momentum': 0.9,
         # train opts:
-        'batch_size': 128,
+        'batch_size': 32,
         'epochs': 100,
         # attack opts:
-        'attack_name': 'pgd_inf',
-        'n_iters': 10,
-        'epsilon': 16.0,
-        'step_size': None,
-        'scale_each': True
+        'attack_name': 'cutout',  # because fastest.
+        'n_holes': 1,
+        'length': 16
     }
 
     command_string = 'python train.py '
     command_string += ' '.join(['--{} {}'.format(k, v) for k, v in config.items()])
     os.system(command_string)
-
-
-cutout_trial()
