@@ -6,3 +6,4 @@ from .gabor_attack import GaborAttack
 from .fog_attack import FogAttack
 from .snow_attack import SnowAttack
 from .cutout import Cutout
+from .patch_gaussian import PatchGaussian
