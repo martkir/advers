@@ -108,7 +108,6 @@ def experiment_1():
     as in the uar paper.
     """
 
-    # todo: check gauss params.
     # patch_gaussian
     config_patch_gaussian = {
         'mode': 'advers',
@@ -125,10 +124,9 @@ def experiment_1():
         'epochs': 100,
         # attack opts:
         'attack_name': 'patch_gaussian',
-        'patch_size': 16,
+        'patch_size': 25,
         'max_scale': 1,
-        'sample_up_to': False
-    }
+        'sample_up_to': False}
 
     config_list = [
         config_normal,
