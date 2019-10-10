@@ -33,7 +33,7 @@ class Logger(object):
         for k, v in flags.items():
             self.config_dict[k] = v
 
-        df = pd.DataFrame.from_dict(self.config_dict)
+        df = pd.DataFrame(self.config_dict, index=[0])
         if extension == 'json':
             config_file = os.path.join(self.log_dir, 'config.json')
             df.to_json(config_file, index=False)
@@ -50,7 +50,7 @@ class Logger(object):
             all_file = os.path.join(self.log_dir, 'all.csv')
             df.to_csv(all_file, index=False, header=True, sep=',')
 
-    def write_plot(self, keys=None, description=None):
+    def write_plot(self, plot_name, keys=None, description=None):
         n_epochs = len(self.vals[list(self.vals.keys())[0]])
         epochs = [i for i in range(n_epochs)]
         fig, ax = plt.subplots(1, 1)
@@ -68,7 +68,7 @@ class Logger(object):
         ax.legend(loc=2)
         fig.set_figheight(5.5)
         fig.set_figwidth(11)
-        plt.savefig(os.path.join(self.img_dir, 'plot.png'))
+        plt.savefig(os.path.join(self.img_dir, '{}.png'.format(plot_name)))
 
     def save_ckpt(self, model, optim):
         """ This is called after the last epoch has finished. A different method is used to save checkpoints after
