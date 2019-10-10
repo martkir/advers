@@ -114,7 +114,7 @@ class Engine(object):
 @click.option("--n_holes", default=1, type=int)
 @click.option("--length", default=16, type=int)
 # patch gaussian:
-@click.option("--patch_size", default=16, type=int)
+@click.option("--patch_size", default=25, type=int)
 @click.option("--max_scale", default=1, type=int)
 @click.option("--sample_up_to", default=False, type=bool)
 # output options:
