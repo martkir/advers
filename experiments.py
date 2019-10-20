@@ -57,7 +57,30 @@ def run(config_list):
     os.chdir('..')
 
 
-def experiment_1():
+def run_single(config_list):
+    """ Run multiple experiments at once.
+
+        Each experiment is specified by a config dictionary. Each config is turned into a .sh script to be executed. Before
+        the .sh scripts are created all old scripts are deleted.
+
+        Args:
+            config_list: list of config dictionaries.
+        """
+
+    # create the commands:
+    command_string_list = []
+    for config in config_list:
+        command_string = 'python train.py '
+        command_string += ' '.join(['--{} {}'.format(k, v) for k, v in config.items()])
+        command_string_list.append(command_string)
+
+    # execute the commands:
+    for command_string in command_string_list:
+        print('start: ', command_string)
+        os.system(command_string)
+
+
+def experiment_1_multi():
     config_normal = {
         'mode': 'normal',
         'dataset': 'cifar-10',
@@ -139,6 +162,88 @@ def experiment_1():
     run(config_list)
 
 
+def experiment_1_single():
+    config_normal = {
+        'mode': 'normal',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        # model
+        'resnet_size': 56,
+        # optimizer
+        'base_lr': 0.1,
+        'wd': 1e-4,
+        'momentum': 0.9,
+        # train opts:
+        'batch_size': 32,
+        'epochs': 100,
+        # attack opts:
+        'attack_name': 'cutout',  # because fastest.
+        'n_holes': 1,
+        'length': 16
+    }
+
+    config_pgd_linf = {
+        'mode': 'advers',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        # model
+        'resnet_size': 56,  # check.
+        # optimizer
+        'base_lr': 0.1,  # check.
+        'wd': 1e-4,  # check.
+        'momentum': 0.9,  # check.
+        # train opts:
+        'batch_size': 32,  # check.
+        'epochs': 100,  # check.
+        # attack opts:
+        'attack_name': 'pgd_linf',
+        'n_iters': 10,
+        'epsilon': 32.0}
+
+    config_pgd_l2 = config_pgd_linf
+    config_pgd_l2['attack_name'] = 'pgd_l2'
+    config_pgd_l2['epsilon'] = 4800
+
+    config_pgd_l1 = config_pgd_linf
+    config_pgd_l1['attack_name'] = 'pgd_l1'
+    config_pgd_l1['epsilon'] = 612000
+
+    """
+    note: in patch gaussian paper on cifar-10 a different model is used. for this experiment i will use the same model
+    as in the uar paper.
+    """
+
+    # patch_gaussian
+    config_patch_gaussian = {
+        'mode': 'advers',
+        'dataset': 'cifar-10',
+        'dataset_path': 'data/cifar-10',
+        # model
+        'resnet_size': 56,
+        # optimizer
+        'base_lr': 0.1,
+        'wd': 1e-4,
+        'momentum': 0.9,
+        # train opts:
+        'batch_size': 32,
+        'epochs': 100,
+        # attack opts:
+        'attack_name': 'patch_gaussian',
+        'patch_size': 25,
+        'max_scale': 1,
+        'sample_up_to': False}
+
+    config_list = [
+        config_normal,
+        config_pgd_linf,
+        config_pgd_l2,
+        config_pgd_l1,
+        config_patch_gaussian
+    ]
+
+    run_single(config_list)
+
+
 def test_single():
     config = {
         'mode': 'normal',
@@ -162,3 +267,6 @@ def test_single():
     command_string = 'python train.py '
     command_string += ' '.join(['--{} {}'.format(k, v) for k, v in config.items()])
     os.system(command_string)
+
+
+experiment_1_single()
